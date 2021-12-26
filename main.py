@@ -7,6 +7,16 @@ from openpyxl.drawing.image import Image
 from enum import Enum
 import io
 
+# mode
+class Index(Enum):
+    URL = 0
+    TITLE = 1
+    VIEW = 2
+    LIKE = 3
+    COMMENTS = 4
+    THUMBNAIL = 5
+
+
 # input
 #VIDEO_ID = "JpTqSzm4JOk"
 INFLUENCER_SHEET = 0
@@ -24,10 +34,11 @@ YOUTUBE_API_VERSION = "v3"
 xlsx = openpyxl.load_workbook('./InputSample_2.xlsx')
 sheet = xlsx.worksheets[VIDEO_SHEET]
 max_row = sheet.max_row + 1
+print("open excel")
+
 
 def RequestInfo(vID):
     VIDEO_SEARCH_URL = "https://www.googleapis.com/youtube/v3/videos?id=" + vID + "&key=" + DEVELOPER_KEY + "&part=snippet,statistics&fields=items(id,snippet(channelId,title, thumbnails.high.url),statistics)"
-    #youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=DEVELOPER_KEY)
     response = requests.get(VIDEO_SEARCH_URL).json()
     return response
 
@@ -52,10 +63,10 @@ def UpdateToExcel(r, start_c, data):
     thumbnailImage.width = 96
     thumbnailImage.height = 72
     colChar = get_column_letter(start_c + Index.THUMBNAIL.value)
-    thumbnailImage.anchor = "%s"%colChar + "%s"%row
+    thumbnailImage.anchor = "%s"%colChar + "%s"%r
     sheet.add_image(thumbnailImage)
     sheet.column_dimensions[colChar].width = thumbnailImage.width
-    sheet.row_dimensions[row].height = thumbnailImage.height
+    sheet.row_dimensions[r].height = thumbnailImage.height
 
 
 def GetVideoData(input_json):
@@ -72,16 +83,23 @@ def GetVideoData(input_json):
     return ret
 
 
-for row in range(START_ROW, max_row):
-    vID = sheet.cell(row, START_COL).value
-    if vID == None:
-        continue
-    res_json = RequestInfo(vID)
-    df_just_video = GetVideoData(res_json)
-    UpdateToExcel(row, START_COL + 1, df_just_video)
+def run_VideoAnalysis():
+    print("progressing...")
+    for row in range(START_ROW, max_row):
+        vID = sheet.cell(row, START_COL).value
+        if vID == None:
+            continue
+        res_json = RequestInfo(vID)
+        df_just_video = GetVideoData(res_json)
+        UpdateToExcel(row, START_COL + 1, df_just_video)
 
+
+
+
+run_VideoAnalysis()
 
 xlsx.save('output.xlsx')
+print("done saving excel: output.xlsx")
 
 
 
