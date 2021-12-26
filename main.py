@@ -1,4 +1,3 @@
-from googleapiclient.discovery import build
 import json
 import requests
 import openpyxl
@@ -18,11 +17,13 @@ class Index(Enum):
 
 
 # input
-#VIDEO_ID = "JpTqSzm4JOk"
+DEVELOPER_KEY = input("input Developer Key for Youtube Data API: ")
+INPUT_EXCEL = './InputSample_2.xlsx'
 INFLUENCER_SHEET = 0
 VIDEO_SHEET = 1
 START_ROW = 5
 START_COL = 2
+OUTPUT_EXCEL = './output.xlsx'
 
 # youtube setting
 YOUTUBE_API_SERVICE_NAME = "youtube"
@@ -31,7 +32,7 @@ YOUTUBE_API_VERSION = "v3"
 
 
 # read excel
-xlsx = openpyxl.load_workbook('./InputSample_2.xlsx')
+xlsx = openpyxl.load_workbook(INPUT_EXCEL)
 sheet = xlsx.worksheets[VIDEO_SHEET]
 max_row = sheet.max_row + 1
 print("open excel")
@@ -92,16 +93,11 @@ def run_VideoAnalysis():
         res_json = RequestInfo(vID)
         df_just_video = GetVideoData(res_json)
         UpdateToExcel(row, START_COL + 1, df_just_video)
+    xlsx.save(OUTPUT_EXCEL)
+    print("done saving excel: " + OUTPUT_EXCEL)
 
 
-
-
+# main
 run_VideoAnalysis()
-
-xlsx.save('output.xlsx')
-print("done saving excel: output.xlsx")
-
-
-
 
 
