@@ -19,15 +19,25 @@ class Index(Enum):
     THUMBNAIL = 5
 
 
-# input
-DEVELOPER_KEY = input("input Developer Key for Youtube Data API: ")
-INPUT_EXCEL = './InputSample_2.xlsx'
-INFLUENCER_SHEET = 0
-VIDEO_SHEET = 1
-START_ROW = 5
-START_COL = 2
-OUTPUT_EXCEL = './output.xlsx'
-MAX_RESULT = 3
+#input
+input_file = open(".\input.txt", "r", encoding="UTF8")
+input_data=input_file.readlines()
+input_file.close()
+dict = {}
+for line in input_data:
+    key_value = line.strip().split('=')
+    if len(key_value)==2:
+        dict[key_value[0]] = key_value[1]
+
+DEVELOPER_KEY = dict["DEVELOPER_KEY"]
+INPUT_EXCEL = dict["INPUT_EXCEL"]
+OUTPUT_EXCEL = dict["OUTPUT_EXCEL"]
+INFLUENCER_SHEET = int(dict["INFLUENCER_SHEET"])
+VIDEO_SHEET = int(dict["VIDEO_SHEET"])
+START_ROW = int(dict["START_ROW"])
+START_COL = int(dict["START_COL"])
+MAX_RESULT = int(dict["MAX_RESULT"])
+
 
 # youtube api
 YOUTUBE_API_SERVICE_NAME="youtube"
