@@ -8,6 +8,8 @@ from enum import Enum
 import io
 
 # Todo: add error handling, excel cell size
+RETURN_ERR = -1
+
 
 # mode
 class Index(Enum):
@@ -91,14 +93,21 @@ def RequestChannelInfo(cID):
 
 
 def RequestChannelContentsInfo(youtube, cID):
-    response = youtube.search().list(
-        channelId = cID,
-        type = "video",
-        order = "date",
-        part = "id",
-        fields = "items(id)",
-        maxResults = MAX_RESULT
-    ).execute()
+    try:
+        response = youtube.search().list(
+            channelId = cID,
+            type = "video",
+            order = "date",
+            part = "id",
+            fields = "items(id)",
+            maxResults = MAX_RESULT
+        ).execute()
+    except requests.HTTPError as exception:
+        print(exception)
+        return RETURN_ERR
+    except Exception as exception:
+        print(exception)
+        return RETURN_ERR
     return response
 
 
@@ -125,6 +134,14 @@ def UpdateChannelInfoToExcel(sheet, r, start_c, data):
 def GetChannelData(channel_info, channel_contents_info):
     arr = json.dumps(channel_info)
     jsonObject = json.loads(arr)
+    if ((jsonObject.get('error')) or ('items' not in jsonObject)):
+        print("response error!")
+        print(jsonObject['error'])
+        return RETURN_ERR
+    items = jsonObject['items']
+    if len(items) <= 0:
+        print("no items for Channel Data!")
+        return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
     ret[cIndex.PROFILE_URL] = "https://www.youtube.com/channel/" + item['id']
@@ -158,6 +175,14 @@ def GetChannelData(channel_info, channel_contents_info):
 def GetVideoData(input_json):
     arr = json.dumps(input_json)
     jsonObject = json.loads(arr)
+    if ((jsonObject.get('error')) or ('items' not in jsonObject)):
+        print("response error!")
+        print(jsonObject['error'])
+        return RETURN_ERR
+    items = jsonObject['items']
+    if len(items) <= 0:
+        print("no items for Video Data!")
+        return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
     ret[vIndex.URL] = "https://www.youtube.com/watch?v=" + item['id']
@@ -177,7 +202,8 @@ def run_VideoAnalysis(sheet):
             continue
         res_json = RequestVideoInfo(vID)
         df_just_video = GetVideoData(res_json)
-        UpdateVideoInfoToExcel(sheet, row, START_COL + 1, df_just_video)
+        if df_just_video != RETURN_ERR:
+            UpdateVideoInfoToExcel(sheet, row, START_COL + 1, df_just_video)
 
 
 def run_InfluencerAnalysis(sheet):
@@ -189,7 +215,11 @@ def run_InfluencerAnalysis(sheet):
             continue
         channel_info = RequestChannelInfo(cID)
         channel_contents_info = RequestChannelContentsInfo(youtube, cID)
+        if channel_contents_info == RETURN_ERR:
+            continue
         df_just_channel = GetChannelData(channel_info, channel_contents_info)
+        if df_just_channel == RETURN_ERR:
+            continue
         UpdateChannelInfoToExcel(sheet, row, START_COL + 1, df_just_channel)
 
 
