@@ -72,16 +72,17 @@ class cIndex(Enum):
 
 
 def InsertImage(sheet, img_url, row, col):
+    image_scale = 10
     response = requests.get(img_url)
     img_file = io.BytesIO(response.content)
     thumbnailImage = Image(img_file)
-    thumbnailImage.width = 96
-    thumbnailImage.height = 72
+    thumbnailImage.width /= image_scale
+    thumbnailImage.height /= image_scale
     colChar = get_column_letter(col)
     thumbnailImage.anchor = "%s"%colChar + "%s"%row
     sheet.add_image(thumbnailImage)
-    sheet.column_dimensions[colChar].width = 30
-    sheet.row_dimensions[row].height = 72
+    #sheet.column_dimensions[colChar].width = thumbnailImage.width
+    sheet.row_dimensions[row].height = thumbnailImage.height
 
 
 def RequestVideoInfo(vID):
@@ -211,7 +212,8 @@ def GetVideoData(vID, input_json):
         ret[vIndex.VIEW] = item['statistics']['viewCount']
         ret[vIndex.LIKE] = item['statistics']['likeCount']
         ret[vIndex.COMMENTS] = item['statistics']['commentCount']
-        ret[vIndex.THUMBNAIL] = item['snippet']['thumbnails']['high']['url']
+        #ret[vIndex.THUMBNAIL] = item['snippet']['thumbnails']['high']['url']
+        ret[vIndex.THUMBNAIL] = "https://img.youtube.com/vi/" + vID + "/maxresdefault.jpg"
     except Exception as exception:
         print("[Warning]: " + str(exception) + ", Video ID: " + vID)
         pass
