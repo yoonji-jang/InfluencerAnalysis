@@ -1,0 +1,7 @@
+V2
+1. Add error handling with no informations
+2. Add User Guide
+
+V1
+1. Initial release
+2. Add error handling with invalid video ID 
