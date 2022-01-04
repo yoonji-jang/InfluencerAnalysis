@@ -7,6 +7,9 @@ from openpyxl.drawing.image import Image
 from enum import Enum
 import io
 
+# version info
+VERSION = 2
+
 # Todo: add error handling, excel cell size
 RETURN_ERR = -1
 
@@ -22,6 +25,7 @@ class Index(Enum):
 
 
 #input
+print("[Info] InfluencerAnalysis V" + str(VERSION))
 input_file = open(".\input.txt", "r", encoding="UTF8")
 input_data=input_file.readlines()
 input_file.close()
@@ -102,11 +106,8 @@ def RequestChannelContentsInfo(youtube, cID):
             fields = "items(id)",
             maxResults = MAX_RESULT
         ).execute()
-    except requests.HTTPError as exception:
-        print(exception)
-        return RETURN_ERR
     except Exception as exception:
-        print(exception)
+        print("[Warning] " + str(exception))
         return RETURN_ERR
     return response
 
@@ -131,39 +132,51 @@ def UpdateChannelInfoToExcel(sheet, r, start_c, data):
     sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE.value).value = data[cIndex.POST_ENGAGE]
 
 
-def GetChannelData(channel_info, channel_contents_info):
+def GetChannelData(cID, channel_info, channel_contents_info):
     arr = json.dumps(channel_info)
     jsonObject = json.loads(arr)
     if ((jsonObject.get('error')) or ('items' not in jsonObject)):
-        print("response error!")
+        print("[Warning] response error! : " + cID)
         print(jsonObject['error'])
         return RETURN_ERR
     items = jsonObject['items']
     if len(items) <= 0:
-        print("no items for Channel Data!")
+        print("[Error] no items for Channel Data: " + cID)
         return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
-    ret[cIndex.PROFILE_URL] = "https://www.youtube.com/channel/" + item['id']
-    ret[cIndex.PROFILE_IMG] = item['snippet']['thumbnails']['high']['url']
-    ret[cIndex.SUBSCRIBER] = item['statistics']['subscriberCount']
+    ret[cIndex.PROFILE_URL] = ""
+    ret[cIndex.PROFILE_IMG] = ""
+    ret[cIndex.SUBSCRIBER] = 0
+    ret[cIndex.POST_VIEW] = 0
+    ret[cIndex.POST_LIKE] = 0
+    ret[cIndex.POST_COMMENT] = 0
+    ret[cIndex.POST_ENGAGE] = 0
+    
+    try:
+        ret[cIndex.PROFILE_URL] = "https://www.youtube.com/channel/" + item['id']
+        ret[cIndex.PROFILE_IMG] = item['snippet']['thumbnails']['high']['url']
+        ret[cIndex.SUBSCRIBER] = item['statistics']['subscriberCount']
 
-    nViewCnt = 0
-    nLikeCnt = 0
-    nCommentCnt = 0
-    for content in channel_contents_info.get("items", []):
-        if content["id"]["kind"] != "youtube#video":
-            print("type is not video!! check the input")
-            # return -1
+        nViewCnt = 0
+        nLikeCnt = 0
+        nCommentCnt = 0
+        for content in channel_contents_info.get("items", []):
+            if content["id"]["kind"] != "youtube#video":
+                print("[Warning] Type is not video!! check the input: " + cID)
+                return RETURN_ERR
 
-        vID = content["id"]["videoId"]
-        res_json = RequestVideoInfo(vID)
+            vID = content["id"]["videoId"]
+            res_json = RequestVideoInfo(vID)
 
-        video_info = GetVideoData(res_json)
-        nViewCnt += int(video_info[vIndex.VIEW])
-        nLikeCnt += int(video_info[vIndex.LIKE])
-        nCommentCnt += int(video_info[vIndex.COMMENTS])
-
+            video_info = GetVideoData(vID, res_json)
+            nViewCnt += int(video_info[vIndex.VIEW])
+            nLikeCnt += int(video_info[vIndex.LIKE])
+            nCommentCnt += int(video_info[vIndex.COMMENTS])
+    except Exception as exception:
+        print("[Warning]: " + str(exception) + ", Channel ID: " + cID)
+        pass
+        
     ret[cIndex.POST_VIEW] = nViewCnt
     ret[cIndex.POST_LIKE] = nLikeCnt
     ret[cIndex.POST_COMMENT] = nCommentCnt
@@ -172,25 +185,36 @@ def GetChannelData(channel_info, channel_contents_info):
     return ret
 
 
-def GetVideoData(input_json):
+def GetVideoData(vID, input_json):
     arr = json.dumps(input_json)
     jsonObject = json.loads(arr)
     if ((jsonObject.get('error')) or ('items' not in jsonObject)):
-        print("response error!")
+        print("[Warning] response error! : " + vID)
         print(jsonObject['error'])
         return RETURN_ERR
     items = jsonObject['items']
     if len(items) <= 0:
-        print("no items for Video Data!")
+        print("[Warning] no items for Video Data: " + vID)
         return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
-    ret[vIndex.URL] = "https://www.youtube.com/watch?v=" + item['id']
-    ret[vIndex.TITLE] = item['snippet']['title']
-    ret[vIndex.VIEW] = item['statistics']['viewCount']
-    ret[vIndex.LIKE] = item['statistics']['likeCount']
-    ret[vIndex.COMMENTS] = item['statistics']['commentCount']
-    ret[vIndex.THUMBNAIL] = item['snippet']['thumbnails']['high']['url']
+    ret[vIndex.URL] = ""
+    ret[vIndex.TITLE] = ""
+    ret[vIndex.VIEW] = 0
+    ret[vIndex.LIKE] = 0
+    ret[vIndex.COMMENTS] = 0 
+    ret[vIndex.THUMBNAIL] = ""    
+    
+    try:
+        ret[vIndex.URL] = "https://www.youtube.com/watch?v=" + item['id']
+        ret[vIndex.TITLE] = item['snippet']['title']
+        ret[vIndex.VIEW] = item['statistics']['viewCount']
+        ret[vIndex.LIKE] = item['statistics']['likeCount']
+        ret[vIndex.COMMENTS] = item['statistics']['commentCount']
+        ret[vIndex.THUMBNAIL] = item['snippet']['thumbnails']['high']['url']
+    except Exception as exception:
+        print("[Warning]: " + str(exception) + ", Video ID: " + vID)
+        pass
     return ret
 
 
@@ -201,9 +225,10 @@ def run_VideoAnalysis(sheet):
         if vID == None:
             continue
         res_json = RequestVideoInfo(vID)
-        df_just_video = GetVideoData(res_json)
-        if df_just_video != RETURN_ERR:
-            UpdateVideoInfoToExcel(sheet, row, START_COL + 1, df_just_video)
+        df_just_video = GetVideoData(vID, res_json)
+        if df_just_video == RETURN_ERR:
+            continue
+        UpdateVideoInfoToExcel(sheet, row, START_COL + 1, df_just_video)
 
 
 def run_InfluencerAnalysis(sheet):
@@ -217,7 +242,7 @@ def run_InfluencerAnalysis(sheet):
         channel_contents_info = RequestChannelContentsInfo(youtube, cID)
         if channel_contents_info == RETURN_ERR:
             continue
-        df_just_channel = GetChannelData(channel_info, channel_contents_info)
+        df_just_channel = GetChannelData(cID, channel_info, channel_contents_info)
         if df_just_channel == RETURN_ERR:
             continue
         UpdateChannelInfoToExcel(sheet, row, START_COL + 1, df_just_channel)
@@ -229,7 +254,7 @@ def run_InfluencerAnalysis(sheet):
 xlsx = openpyxl.load_workbook(INPUT_EXCEL)
 cSheet = xlsx.worksheets[INFLUENCER_SHEET]
 vSheet = xlsx.worksheets[VIDEO_SHEET]
-print("open excel")
+print("[Info] Open input excel: " + INPUT_EXCEL)
 
 # run Analysis
 run_VideoAnalysis(vSheet)
@@ -237,4 +262,4 @@ run_InfluencerAnalysis(cSheet)
 
 # save excel
 xlsx.save(OUTPUT_EXCEL)
-print("done saving excel: " + OUTPUT_EXCEL)
+print("[Info] Done saving excel: " + OUTPUT_EXCEL)
