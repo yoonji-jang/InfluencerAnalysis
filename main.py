@@ -118,9 +118,9 @@ def RequestChannelContentsInfo(youtube, cID):
 def UpdateVideoInfoToExcel(sheet, r, start_c, data):
     sheet.cell(row=r, column=start_c + vIndex.URL.value).value = data[vIndex.URL]
     sheet.cell(row=r, column=start_c + vIndex.TITLE.value).value = data[vIndex.TITLE]
-    sheet.cell(row=r, column=start_c + vIndex.VIEW.value).value = data[vIndex.VIEW]
-    sheet.cell(row=r, column=start_c + vIndex.LIKE.value).value = data[vIndex.LIKE]
-    sheet.cell(row=r, column=start_c + vIndex.COMMENTS.value).value = data[vIndex.COMMENTS]
+    sheet.cell(row=r, column=start_c + vIndex.VIEW.value).value = round(float(data[vIndex.VIEW]), 2)
+    sheet.cell(row=r, column=start_c + vIndex.LIKE.value).value = round(float(data[vIndex.LIKE]), 2)
+    sheet.cell(row=r, column=start_c + vIndex.COMMENTS.value).value = round(float(data[vIndex.COMMENTS]), 2)
     InsertImage(sheet, data[vIndex.THUMBNAIL], r, start_c + vIndex.THUMBNAIL.value)
 
 
@@ -129,10 +129,10 @@ def UpdateChannelInfoToExcel(sheet, r, start_c, data):
     InsertImage(sheet, data[cIndex.PROFILE_IMG], r, start_c + cIndex.PROFILE_IMG.value)
     sheet.cell(row=r, column=start_c + cIndex.SUBSCRIBER.value).value = data[cIndex.SUBSCRIBER]
 
-    sheet.cell(row=r, column=start_c + cIndex.POST_VIEW.value).value = data[cIndex.POST_VIEW]
-    sheet.cell(row=r, column=start_c + cIndex.POST_LIKE.value).value = data[cIndex.POST_LIKE]
-    sheet.cell(row=r, column=start_c + cIndex.POST_COMMENT.value).value = data[cIndex.POST_COMMENT]
-    sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE.value).value = data[cIndex.POST_ENGAGE]
+    sheet.cell(row=r, column=start_c + cIndex.POST_VIEW.value).value = round(float(data[cIndex.POST_VIEW]), 2)
+    sheet.cell(row=r, column=start_c + cIndex.POST_LIKE.value).value = round(float(data[cIndex.POST_LIKE]), 2)
+    sheet.cell(row=r, column=start_c + cIndex.POST_COMMENT.value).value = round(float(data[cIndex.POST_COMMENT]),2 )
+    sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE.value).value = round(float(data[cIndex.POST_ENGAGE]), 2)
 
 
 def GetChannelData(cID, channel_info, channel_contents_info):
