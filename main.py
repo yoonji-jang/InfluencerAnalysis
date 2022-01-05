@@ -6,6 +6,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.drawing.image import Image
 from enum import Enum
 import io
+from tqdm import trange
+
 
 # version info
 VERSION = 2
@@ -162,6 +164,9 @@ def GetChannelData(cID, channel_info, channel_contents_info):
         nViewCnt = 0
         nLikeCnt = 0
         nCommentCnt = 0
+        nView = 0;
+        nLike = 0;
+        nComment = 0;
         for content in channel_contents_info.get("items", []):
             if content["id"]["kind"] != "youtube#video":
                 print("[Warning] Type is not video!! check the input: " + cID)
@@ -171,17 +176,30 @@ def GetChannelData(cID, channel_info, channel_contents_info):
             res_json = RequestVideoInfo(vID)
 
             video_info = GetVideoData(vID, res_json)
-            nViewCnt += int(video_info[vIndex.VIEW])
-            nLikeCnt += int(video_info[vIndex.LIKE])
-            nCommentCnt += int(video_info[vIndex.COMMENTS])
+            view = int(video_info[vIndex.VIEW])
+            like = int(video_info[vIndex.LIKE])
+            comments = int(video_info[vIndex.COMMENTS])
+
+            if view > 0:
+                nViewCnt += view
+                nView += 1
+            if like > 0:
+                nLikeCnt += like
+                nLike += 1
+            if comments > 0:
+                nCommentCnt += comments
+                nComment += 1
     except Exception as exception:
         print("[Warning]: " + str(exception) + ", Channel ID: " + cID)
         pass
         
-    ret[cIndex.POST_VIEW] = nViewCnt
-    ret[cIndex.POST_LIKE] = nLikeCnt
-    ret[cIndex.POST_COMMENT] = nCommentCnt
-    if nViewCnt != 0:
+    if nView > 0:
+        ret[cIndex.POST_VIEW] = nViewCnt / nView
+    if nLike > 0:
+        ret[cIndex.POST_LIKE] = nLikeCnt / nLike
+    if nComment > 0:
+        ret[cIndex.POST_COMMENT] = nCommentCnt / nComment
+    if nViewCnt > 0:
         ret[cIndex.POST_ENGAGE] = ((nLikeCnt + nCommentCnt) / nViewCnt) * 100
     return ret
 
@@ -206,23 +224,27 @@ def GetVideoData(vID, input_json):
     ret[vIndex.COMMENTS] = 0 
     ret[vIndex.THUMBNAIL] = ""    
     
-    try:
+    if ('id' in item):
         ret[vIndex.URL] = "https://www.youtube.com/watch?v=" + item['id']
+    if ('snippet' in item) and ('title' in item['snippet']):
         ret[vIndex.TITLE] = item['snippet']['title']
-        ret[vIndex.VIEW] = item['statistics']['viewCount']
-        ret[vIndex.LIKE] = item['statistics']['likeCount']
-        ret[vIndex.COMMENTS] = item['statistics']['commentCount']
-        #ret[vIndex.THUMBNAIL] = item['snippet']['thumbnails']['high']['url']
-        ret[vIndex.THUMBNAIL] = "https://img.youtube.com/vi/" + vID + "/maxresdefault.jpg"
-    except Exception as exception:
-        print("[Warning]: " + str(exception) + ", Video ID: " + vID)
-        pass
+    if ('statistics' in item):
+        statistics = item['statistics']
+        if ('viewCount' in statistics):
+            ret[vIndex.VIEW] = statistics['viewCount']
+        if ('likeCount' in statistics):
+            ret[vIndex.LIKE] = statistics['likeCount']
+        if ('commentCount' in statistics):
+            ret[vIndex.COMMENTS] = statistics['commentCount']
+    ret[vIndex.THUMBNAIL] = "https://img.youtube.com/vi/" + vID + "/maxresdefault.jpg"
+
     return ret
 
 
 def run_VideoAnalysis(sheet):
+    print("[Info] Running VideoAnalysis")
     max_row = sheet.max_row + 1
-    for row in range(START_ROW, max_row):
+    for row in trange(START_ROW, max_row):
         vID = sheet.cell(row, START_COL).value
         if vID == None:
             continue
@@ -234,9 +256,10 @@ def run_VideoAnalysis(sheet):
 
 
 def run_InfluencerAnalysis(sheet):
+    print("[Info] Running InfluencerAnalysis")
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=DEVELOPER_KEY)
     max_row = sheet.max_row + 1
-    for row in range(START_ROW, max_row):
+    for row in trange(START_ROW, max_row):
         cID = sheet.cell(row, START_COL).value
         if cID == None:
             continue
