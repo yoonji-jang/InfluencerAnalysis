@@ -4,9 +4,10 @@ import requests
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.drawing.image import Image
-from enum import Enum
+import enum
 import io
 from tqdm import trange
+from urllib.parse import urlparse, parse_qs
 
 
 # version info
@@ -15,62 +16,68 @@ VERSION = 2
 # Todo: add error handling, excel cell size
 RETURN_ERR = -1
 
-
-# mode
-class Index(Enum):
-    URL = 0
-    TITLE = 1
-    VIEW = 2
-    LIKE = 3
-    COMMENTS = 4
-    THUMBNAIL = 5
-
-
 #input
 print("[Info] InfluencerAnalysis V" + str(VERSION))
 input_file = open(".\input.txt", "r", encoding="UTF8")
 input_data=input_file.readlines()
 input_file.close()
-dict = {}
+excel_dict = {}
 for line in input_data:
     key_value = line.strip().split('=')
     if len(key_value)==2:
-        dict[key_value[0]] = key_value[1]
+        excel_dict[key_value[0]] = key_value[1]
 
-DEVELOPER_KEY = dict["DEVELOPER_KEY"]
-INPUT_EXCEL = dict["INPUT_EXCEL"]
-OUTPUT_EXCEL = dict["OUTPUT_EXCEL"]
-INFLUENCER_SHEET = int(dict["INFLUENCER_SHEET"])
-VIDEO_SHEET = int(dict["VIDEO_SHEET"])
-START_ROW = int(dict["START_ROW"])
-START_COL = int(dict["START_COL"])
-MAX_RESULT = int(dict["MAX_RESULT"])
-
+DEVELOPER_KEY = excel_dict["DEVELOPER_KEY"]
+INPUT_EXCEL = excel_dict["INPUT_EXCEL"]
+OUTPUT_EXCEL = excel_dict["OUTPUT_EXCEL"]
+INFLUENCER_SHEET = int(excel_dict["INFLUENCER_SHEET"])
+VIDEO_SHEET = int(excel_dict["VIDEO_SHEET"])
+START_ROW = int(excel_dict["START_ROW"])
+START_COL = int(excel_dict["START_COL"])
+MAX_RESULT = int(excel_dict["MAX_RESULT"])
 
 # youtube api
 YOUTUBE_API_SERVICE_NAME="youtube"
 YOUTUBE_API_VERSION="v3"
 
-class vIndex(Enum):
-    URL = 0
-    TITLE = 1
-    VIEW = 2
-    LIKE = 3
-    COMMENTS = 4
-    THUMBNAIL = 5
+def make_enum(*sequential, **named):
+    enums = dict(zip(sequential, range(len(sequential))), **named)
+    print(enums)
+    return type('Enum', (), enums)
 
-class cIndex(Enum):
-    PROFILE_URL = 0
-    PROFILE_IMG = 1
-    SUBSCRIBER = 2
-    POST_VIEW = 3
-    POST_LIKE = 4
-    POST_COMMENT = 5
-    POST_ENGAGE = 6
-    AGE = 7
-    GENDER = 8
-    LOCATION = 9
-    LANGUAGE = 10
+vIndex = make_enum('TITLE', 'VIEW', 'LIKE', 'COMMENTS', 'THUMBNAIL')
+cIndex = make_enum('PROFILE_IMG', 'SUBSCRIBER', 'POST_VIEW', 'POST_LIKE', 'POST_COMMENT', 'POST_ENGAGE', 'AGE', 'GENDER', 'LOCATION', 'LANGUAGE')
+
+
+def get_youtube_id(url):
+    """Returns Video_ID extracting from the given url of Youtube
+
+    Examples of URLs:
+      Valid:
+        'http://youtu.be/_lOT2p_FCvA',
+        'www.youtube.com/watch?v=_lOT2p_FCvA&feature=feedu',
+        'http://www.youtube.com/embed/_lOT2p_FCvA',
+        'http://www.youtube.com/v/_lOT2p_FCvA?version=3&amp;hl=en_US',
+        'https://www.youtube.com/watch?v=rTHlyTphWP0&index=6&list=PLjeDyYvG6-40qawYNR4juzvSOg-ezZ2a6',
+        'youtube.com/watch?v=_lOT2p_FCvA',
+        'https://www.youtube.com/channel/UCUbOogiD-4PKDqaJfSOTC0g'
+      Invalid:
+        'youtu.be/watch?v=_lOT2p_FCvA',
+    """
+    if url.startswith(('youtu', 'www')):
+        url = 'http://' + url
+
+    query = urlparse(url)
+
+    if 'youtube' in query.hostname:
+        if query.path == '/watch':
+            return parse_qs(query.query)['v'][0]
+        elif query.path.startswith(('/embed/', '/v/', '/channel/')):
+            return query.path.split('/')[2]
+    elif 'youtu.be' in query.hostname:
+        return query.path[1:]
+    else:
+        return RETURN_ERR
 
 
 def InsertImage(sheet, img_url, row, col):
@@ -116,23 +123,21 @@ def RequestChannelContentsInfo(youtube, cID):
 
 
 def UpdateVideoInfoToExcel(sheet, r, start_c, data):
-    sheet.cell(row=r, column=start_c + vIndex.URL.value).value = data[vIndex.URL]
-    sheet.cell(row=r, column=start_c + vIndex.TITLE.value).value = data[vIndex.TITLE]
-    sheet.cell(row=r, column=start_c + vIndex.VIEW.value).value = round(float(data[vIndex.VIEW]), 2)
-    sheet.cell(row=r, column=start_c + vIndex.LIKE.value).value = round(float(data[vIndex.LIKE]), 2)
-    sheet.cell(row=r, column=start_c + vIndex.COMMENTS.value).value = round(float(data[vIndex.COMMENTS]), 2)
-    InsertImage(sheet, data[vIndex.THUMBNAIL], r, start_c + vIndex.THUMBNAIL.value)
+    sheet.cell(row=r, column=start_c + vIndex.TITLE).value = data[vIndex.TITLE]
+    sheet.cell(row=r, column=start_c + vIndex.VIEW).value = round(float(data[vIndex.VIEW]), 2)
+    sheet.cell(row=r, column=start_c + vIndex.LIKE).value = round(float(data[vIndex.LIKE]), 2)
+    sheet.cell(row=r, column=start_c + vIndex.COMMENTS).value = round(float(data[vIndex.COMMENTS]), 2)
+    InsertImage(sheet, data[vIndex.THUMBNAIL], r, start_c + vIndex.THUMBNAIL)
 
 
 def UpdateChannelInfoToExcel(sheet, r, start_c, data):
-    sheet.cell(row=r, column=start_c + cIndex.PROFILE_URL.value).value = data[cIndex.PROFILE_URL]
-    InsertImage(sheet, data[cIndex.PROFILE_IMG], r, start_c + cIndex.PROFILE_IMG.value)
-    sheet.cell(row=r, column=start_c + cIndex.SUBSCRIBER.value).value = data[cIndex.SUBSCRIBER]
+    InsertImage(sheet, data[cIndex.PROFILE_IMG], r, start_c + cIndex.PROFILE_IMG)
+    sheet.cell(row=r, column=start_c + cIndex.SUBSCRIBER).value = data[cIndex.SUBSCRIBER]
 
-    sheet.cell(row=r, column=start_c + cIndex.POST_VIEW.value).value = round(float(data[cIndex.POST_VIEW]), 2)
-    sheet.cell(row=r, column=start_c + cIndex.POST_LIKE.value).value = round(float(data[cIndex.POST_LIKE]), 2)
-    sheet.cell(row=r, column=start_c + cIndex.POST_COMMENT.value).value = round(float(data[cIndex.POST_COMMENT]),2 )
-    sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE.value).value = round(float(data[cIndex.POST_ENGAGE]), 2)
+    sheet.cell(row=r, column=start_c + cIndex.POST_VIEW).value = round(float(data[cIndex.POST_VIEW]), 2)
+    sheet.cell(row=r, column=start_c + cIndex.POST_LIKE).value = round(float(data[cIndex.POST_LIKE]), 2)
+    sheet.cell(row=r, column=start_c + cIndex.POST_COMMENT).value = round(float(data[cIndex.POST_COMMENT]),2 )
+    sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE).value = round(float(data[cIndex.POST_ENGAGE]), 2)
 
 
 def GetChannelData(cID, channel_info, channel_contents_info):
@@ -148,7 +153,6 @@ def GetChannelData(cID, channel_info, channel_contents_info):
         return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
-    ret[cIndex.PROFILE_URL] = ""
     ret[cIndex.PROFILE_IMG] = ""
     ret[cIndex.SUBSCRIBER] = 0
     ret[cIndex.POST_VIEW] = 0
@@ -157,7 +161,6 @@ def GetChannelData(cID, channel_info, channel_contents_info):
     ret[cIndex.POST_ENGAGE] = 0
     
     try:
-        ret[cIndex.PROFILE_URL] = "https://www.youtube.com/channel/" + item['id']
         ret[cIndex.PROFILE_IMG] = item['snippet']['thumbnails']['high']['url']
         ret[cIndex.SUBSCRIBER] = item['statistics']['subscriberCount']
 
@@ -217,15 +220,12 @@ def GetVideoData(vID, input_json):
         return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
-    ret[vIndex.URL] = ""
     ret[vIndex.TITLE] = ""
     ret[vIndex.VIEW] = 0
     ret[vIndex.LIKE] = 0
     ret[vIndex.COMMENTS] = 0 
     ret[vIndex.THUMBNAIL] = ""    
     
-    if ('id' in item):
-        ret[vIndex.URL] = "https://www.youtube.com/watch?v=" + item['id']
     if ('snippet' in item) and ('title' in item['snippet']):
         ret[vIndex.TITLE] = item['snippet']['title']
     if ('statistics' in item):
@@ -245,8 +245,11 @@ def run_VideoAnalysis(sheet):
     print("[Info] Running VideoAnalysis")
     max_row = sheet.max_row + 1
     for row in trange(START_ROW, max_row):
-        vID = sheet.cell(row, START_COL).value
-        if vID == None:
+        vURL = sheet.cell(row, START_COL).value
+        if vURL == None:
+            continue
+        vID = get_youtube_id(vURL)
+        if vID == RETURN_ERR:
             continue
         res_json = RequestVideoInfo(vID)
         df_just_video = GetVideoData(vID, res_json)
@@ -260,8 +263,11 @@ def run_InfluencerAnalysis(sheet):
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=DEVELOPER_KEY)
     max_row = sheet.max_row + 1
     for row in trange(START_ROW, max_row):
-        cID = sheet.cell(row, START_COL).value
-        if cID == None:
+        cURL = sheet.cell(row, START_COL).value
+        if cURL == None:
+            continue
+        cID = get_youtube_id(cURL)
+        if cID == RETURN_ERR:
             continue
         channel_info = RequestChannelInfo(cID)
         channel_contents_info = RequestChannelContentsInfo(youtube, cID)
@@ -271,8 +277,6 @@ def run_InfluencerAnalysis(sheet):
         if df_just_channel == RETURN_ERR:
             continue
         UpdateChannelInfoToExcel(sheet, row, START_COL + 1, df_just_channel)
-
-
 
 
 # read excel
