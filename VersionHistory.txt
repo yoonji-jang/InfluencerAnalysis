@@ -1,3 +1,8 @@
+V3
+1. Change total to sum
+2. Enable to parse youtube url
+3. Use round calculation for engage rate
+
 V2
 1. Add error handling with no informations
 2. Add User Guide
