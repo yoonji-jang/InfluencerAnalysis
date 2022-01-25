@@ -70,12 +70,17 @@ def get_id_from_url(url):
     query = urlparse(url)
 
     if 'youtube' in query.hostname:
-        if query.path == '/watch':
+        if (query.path == '/watch'):
             return parse_qs(query.query)['v'][0]
         elif query.path.startswith(('/embed/', '/v/', '/channel/')):
             return query.path.split('/')[2]
     elif 'youtu.be' in query.hostname:
         return query.path[1:]
+    elif 'instagram' in query.hostname:
+        if query.path.startwith('/p/'):
+            return query.path.split('/')[2]
+        else:
+            return query.path.split('/')[1]
     else:
         return RETURN_ERR
 
@@ -236,14 +241,14 @@ def GetVideoData(vID, input_json, dev_key):
             ret[vIndex.TITLE] = snippet['title']
         if ('channelId' in snippet):
             cID = snippet['channelId']
-            ret[vIndex.CHANNEL_URL] = cID
+            ret[vIndex.CHANNEL_URL] = "https://www.youtube.com/channel/" + cID
             channel_info = RequestChannelInfo(cID, dev_key)
             arr = json.dumps(channel_info)
             jsonObject = json.loads(arr)
             if ('items' in jsonObject):
-                item = jsonObject['items'][0]
-                if ('statistics' in item) and ('subscriberCount' in item['statistics']):
-                    ret[vIndex.CHANNEL_SUBSCRIBER] = item['statistics']['subscriberCount']
+                item_channel = jsonObject['items'][0]
+                if ('statistics' in item_channel) and ('subscriberCount' in item_channel['statistics']):
+                    ret[vIndex.CHANNEL_SUBSCRIBER] = item_channel['statistics']['subscriberCount']
     if ('statistics' in item):
         statistics = item['statistics']
         if ('viewCount' in statistics):
@@ -296,6 +301,12 @@ def run_InfluencerAnalysis(sheet, dev_key):
         UpdateChannelInfoToExcel(sheet, row, START_COL + 1, df_just_channel)
 
 
+
+def RequestChannelInfo_Instagram(cID):
+    Channel_url = "https://www.instagram.com/" + cID + "/?__a=1"
+    response = requests.get(Channel_url).json()
+
+
 # read excel
 xlsx = openpyxl.load_workbook(INPUT_EXCEL)
 cSheet = xlsx.worksheets[INFLUENCER_SHEET]
@@ -303,8 +314,8 @@ vSheet = xlsx.worksheets[VIDEO_SHEET]
 print("[Info] Open input excel: " + INPUT_EXCEL)
 
 # run Analysis
-run_VideoAnalysis(vSheet)
-run_InfluencerAnalysis(cSheet)
+run_VideoAnalysis(vSheet, DEVELOPER_KEY)
+run_InfluencerAnalysis(cSheet, DEVELOPER_KEY)
 
 # save excel
 xlsx.save(OUTPUT_EXCEL)
