@@ -172,22 +172,29 @@ def GetChannelData(cID, channel_info, channel_contents_info, dev_key):
     ret[cIndex.POST_COMMENT] = 0
     ret[cIndex.POST_ENGAGE] = 0
     
-    try:
-        ret[cIndex.PROFILE_IMG] = item['snippet']['thumbnails']['high']['url']
-        ret[cIndex.TITLE] = item['snippet']['title']
+
+    if ('snippet' in item):
+        snippet = item['snippet']
+        if ('thumbnails' in snippet) and ('high' in snippet['thumbnails']) and ('url' in snippet['thumbnails']['high']):
+            ret[cIndex.PROFILE_IMG] = snippet['thumbnails']['high']['url']
+        if ('title' in snippet):
+            ret[cIndex.TITLE] = snippet['title']
+
+    if ('statistics' in item) and ('subscriberCount' in item['statistics']):
         ret[cIndex.SUBSCRIBER] = item['statistics']['subscriberCount']
 
-        nViewCnt = 0
-        nLikeCnt = 0
-        nCommentCnt = 0
-        nView = 0;
-        nLike = 0;
-        nComment = 0;
-        for content in channel_contents_info.get("items", []):
-            if content["id"]["kind"] != "youtube#video":
+    nViewCnt = 0
+    nLikeCnt = 0
+    nCommentCnt = 0
+    nView = 0;
+    nLike = 0;
+    nComment = 0;
+    for content in channel_contents_info.get("items", []):
+        if ('id' in content):
+            contentId = content['id']
+            if ('kind' in contentId) and (contentId["kind"] != "youtube#video"):
                 print("[Warning] Type is not video!! check the input: " + cID)
                 return RETURN_ERR
-
             vID = content["id"]["videoId"]
             res_json = RequestVideoInfo(vID, dev_key)
 
@@ -205,10 +212,7 @@ def GetChannelData(cID, channel_info, channel_contents_info, dev_key):
             if comments > 0:
                 nCommentCnt += comments
                 nComment += 1
-    except Exception as exception:
-        print("[Warning]: " + str(exception) + ", Channel ID: " + cID)
-        pass
-        
+
     if nView > 0:
         ret[cIndex.POST_VIEW] = nViewCnt / nView
     if nLike > 0:
@@ -280,7 +284,8 @@ def run_VideoAnalysis(sheet, dev_key):
         if vURL == None:
             continue
         vID = get_id_from_url(vURL)
-        if vID == RETURN_ERR:
+        if (vID == RETURN_ERR) or (vID == None):
+            print("[Warning] " + "fail to get ID from URL : " + vURL)
             continue
         res_json = RequestVideoInfo(vID, dev_key)
         df_just_video = GetVideoData(vID, res_json, dev_key)
@@ -298,7 +303,8 @@ def run_InfluencerAnalysis(sheet, dev_key):
         if cURL == None:
             continue
         cID = get_id_from_url(cURL)
-        if cID == RETURN_ERR:
+        if (cID == RETURN_ERR) or (cID == None):
+            print("[Warning] " + "fail to get ID from URL : " + cURL)
             continue
             # here!
         channel_info = RequestChannelInfo(cID, dev_key)
