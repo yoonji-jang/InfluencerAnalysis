@@ -11,7 +11,7 @@ from urllib.parse import urlparse, parse_qs
 
 
 # version info
-VERSION = 3
+VERSION = 3.2
 
 # Todo: add error handling, excel cell size
 RETURN_ERR = -1
@@ -42,11 +42,10 @@ YOUTUBE_API_VERSION="v3"
 
 def make_enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
-    print(enums)
     return type('Enum', (), enums)
 
-vIndex = make_enum('TITLE', 'VIEW', 'LIKE', 'COMMENTS', 'CHANNEL_URL', 'CHANNEL_SUBSCRIBER', 'THUMBNAIL')
-cIndex = make_enum('PROFILE_IMG', 'SUBSCRIBER', 'POST_VIEW', 'POST_LIKE', 'POST_COMMENT', 'POST_ENGAGE', 'AGE', 'GENDER', 'LOCATION', 'LANGUAGE')
+vIndex = make_enum('V_URL', 'V_TITLE', 'VIEW', 'LIKE', 'COMMENTS', 'C_TITLE', 'C_URL', 'CHANNEL_SUBSCRIBER', 'THUMBNAIL')
+cIndex = make_enum('URL', 'PROFILE_IMG', 'TITLE', 'SUBSCRIBER', 'POST_VIEW', 'POST_LIKE', 'POST_COMMENT', 'POST_ENGAGE', 'AGE', 'GENDER', 'LOCATION', 'LANGUAGE')
 
 
 def get_id_from_url(url):
@@ -70,7 +69,7 @@ def get_id_from_url(url):
     query = urlparse(url)
 
     if 'youtube' in query.hostname:
-        if (query.path == '/watch'):
+        if (query.path == '/watch') or (query.path == '//watch'):
             return parse_qs(query.query)['v'][0]
         elif query.path.startswith(('/embed/', '/v/', '/channel/')):
             return query.path.split('/')[2]
@@ -127,18 +126,22 @@ def RequestChannelContentsInfo(youtube, cID):
     return response
 
 
-def UpdateVideoInfoToExcel(sheet, r, start_c, data):
-    sheet.cell(row=r, column=start_c + vIndex.TITLE).value = data[vIndex.TITLE]
+def UpdateVideoInfoToExcel(sheet, r, start, data):
+    start_c = start - 1
+    sheet.cell(row=r, column=start_c + vIndex.V_TITLE).value = '=HYPERLINK("{}", "{}")'.format(data[vIndex.V_URL], data[vIndex.V_TITLE])
     sheet.cell(row=r, column=start_c + vIndex.VIEW).value = round(float(data[vIndex.VIEW]), 2)
     sheet.cell(row=r, column=start_c + vIndex.LIKE).value = round(float(data[vIndex.LIKE]), 2)
     sheet.cell(row=r, column=start_c + vIndex.COMMENTS).value = round(float(data[vIndex.COMMENTS]), 2)
-    sheet.cell(row=r, column=start_c + vIndex.CHANNEL_URL).value = data[vIndex.CHANNEL_URL]
+    sheet.cell(row=r, column=start_c + vIndex.C_TITLE).value = '=HYPERLINK("{}", "{}")'.format(data[vIndex.C_URL], data[vIndex.C_TITLE])
+    sheet.cell(row=r, column=start_c + vIndex.C_URL).value = data[vIndex.C_URL]
     sheet.cell(row=r, column=start_c + vIndex.CHANNEL_SUBSCRIBER).value = round(float(data[vIndex.CHANNEL_SUBSCRIBER]), 2)
     InsertImage(sheet, data[vIndex.THUMBNAIL], r, start_c + vIndex.THUMBNAIL)
 
 
-def UpdateChannelInfoToExcel(sheet, r, start_c, data):
+def UpdateChannelInfoToExcel(sheet, r, start, data):
+    start_c = start - 1
     InsertImage(sheet, data[cIndex.PROFILE_IMG], r, start_c + cIndex.PROFILE_IMG)
+    sheet.cell(row=r, column=start_c + cIndex.TITLE).value = '=HYPERLINK("{}", "{}")'.format(data[cIndex.URL], data[cIndex.TITLE])
     sheet.cell(row=r, column=start_c + cIndex.SUBSCRIBER).value = data[cIndex.SUBSCRIBER]
 
     sheet.cell(row=r, column=start_c + cIndex.POST_VIEW).value = round(float(data[cIndex.POST_VIEW]), 2)
@@ -160,7 +163,9 @@ def GetChannelData(cID, channel_info, channel_contents_info, dev_key):
         return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
+    ret[cIndex.URL] = "https://www.youtube.com/channel/" + cID
     ret[cIndex.PROFILE_IMG] = ""
+    ret[cIndex.TITLE] = ""
     ret[cIndex.SUBSCRIBER] = 0
     ret[cIndex.POST_VIEW] = 0
     ret[cIndex.POST_LIKE] = 0
@@ -169,6 +174,7 @@ def GetChannelData(cID, channel_info, channel_contents_info, dev_key):
     
     try:
         ret[cIndex.PROFILE_IMG] = item['snippet']['thumbnails']['high']['url']
+        ret[cIndex.TITLE] = item['snippet']['title']
         ret[cIndex.SUBSCRIBER] = item['statistics']['subscriberCount']
 
         nViewCnt = 0
@@ -227,26 +233,30 @@ def GetVideoData(vID, input_json, dev_key):
         return RETURN_ERR
     item = jsonObject['items'][0]
     ret = {}
-    ret[vIndex.TITLE] = ""
+    ret[vIndex.V_URL] = "https://www.youtube.com/watch?v=" + vID
+    ret[vIndex.V_TITLE] = ""
     ret[vIndex.VIEW] = 0
     ret[vIndex.LIKE] = 0
     ret[vIndex.COMMENTS] = 0 
-    ret[vIndex.CHANNEL_URL] = ""
+    ret[vIndex.C_TITLE] = ""
+    ret[vIndex.C_URL] = ""
     ret[vIndex.CHANNEL_SUBSCRIBER] = 0
     ret[vIndex.THUMBNAIL] = ""    
     
     if ('snippet' in item):
         snippet = item['snippet']
         if ('title' in snippet):
-            ret[vIndex.TITLE] = snippet['title']
+            ret[vIndex.V_TITLE] = snippet['title']
         if ('channelId' in snippet):
             cID = snippet['channelId']
-            ret[vIndex.CHANNEL_URL] = "https://www.youtube.com/channel/" + cID
+            ret[vIndex.C_URL] = "https://www.youtube.com/channel/" + cID
             channel_info = RequestChannelInfo(cID, dev_key)
             arr = json.dumps(channel_info)
             jsonObject = json.loads(arr)
             if ('items' in jsonObject):
                 item_channel = jsonObject['items'][0]
+                if ('snippet' in item_channel) and ('title' in item_channel['snippet']):
+                    ret[vIndex.C_TITLE] = item_channel['snippet']['title']
                 if ('statistics' in item_channel) and ('subscriberCount' in item_channel['statistics']):
                     ret[vIndex.CHANNEL_SUBSCRIBER] = item_channel['statistics']['subscriberCount']
     if ('statistics' in item):
