@@ -8,6 +8,7 @@ import enum
 import io
 from tqdm import trange
 from urllib.parse import urlparse, parse_qs
+from datetime import datetime
 
 
 # version info
@@ -32,9 +33,13 @@ INPUT_EXCEL = excel_dict["INPUT_EXCEL"]
 OUTPUT_EXCEL = excel_dict["OUTPUT_EXCEL"]
 INFLUENCER_SHEET = int(excel_dict["INFLUENCER_SHEET"])
 VIDEO_SHEET = int(excel_dict["VIDEO_SHEET"])
+IG_INFLUENCER_SHEET = int(excel_dict["IG_INFLUENCER_SHEET"])
+IG_POST_SHEET = int(excel_dict["IG_POST_SHEET"])
 START_ROW = int(excel_dict["START_ROW"])
 START_COL = int(excel_dict["START_COL"])
 MAX_RESULT = int(excel_dict["MAX_RESULT"])
+INSTA_ID = excel_dict["INSTA_ID"]
+INSTA_PW = excel_dict["INSTA_PW"]
 
 # youtube api
 YOUTUBE_API_SERVICE_NAME="youtube"
@@ -65,6 +70,8 @@ def get_id_from_url(url):
     """
     if url.startswith(('youtu', 'www')):
         url = 'http://' + url
+    elif url.startswith(('insta', 'www')):
+        url = 'http://' + url
 
     query = urlparse(url)
 
@@ -76,7 +83,7 @@ def get_id_from_url(url):
     elif 'youtu.be' in query.hostname:
         return query.path[1:]
     elif 'instagram' in query.hostname:
-        if query.path.startwith('/p/'):
+        if query.path.startswith('/p/'):
             return query.path.split('/')[2]
         else:
             return query.path.split('/')[1]
@@ -86,6 +93,8 @@ def get_id_from_url(url):
 
 def InsertImage(sheet, img_url, row, col):
     image_scale = 10
+    if (img_url == ""):
+        return
     response = requests.get(img_url)
     img_file = io.BytesIO(response.content)
     thumbnailImage = Image(img_file)
@@ -98,6 +107,7 @@ def InsertImage(sheet, img_url, row, col):
     sheet.row_dimensions[row].height = thumbnailImage.height
 
 
+# Youtube
 def RequestVideoInfo(vID, dev_key):
     VIDEO_SEARCH_URL = "https://www.googleapis.com/youtube/v3/videos?id=" + vID + "&key=" + dev_key + "&part=snippet,statistics&fields=items(id,snippet(channelId, title, thumbnails.high),statistics)"
     response = requests.get(VIDEO_SEARCH_URL).json()
@@ -317,16 +327,146 @@ def run_InfluencerAnalysis(sheet, dev_key):
         UpdateChannelInfoToExcel(sheet, row, START_COL + 1, df_just_channel)
 
 
+# Instagram
+def RequestInfo_Instagram(url, session):
+    try:
+        info_url = url + "?__a=1"
+        response = session.get(info_url).json()
+    except Exception as exception:
+        print("[Warning] " + str(exception))
+        return RETURN_ERR
+    return response
 
-def RequestChannelInfo_Instagram(cID):
-    Channel_url = "https://www.instagram.com/" + cID + "/?__a=1"
-    response = requests.get(Channel_url).json()
+
+def GetContentData_Instagram(content_json, session):
+    arr = json.dumps(content_json)
+    jsonObject = json.loads(arr)
+    if ('items' not in jsonObject):
+        print("[Warning] response error!")
+        return RETURN_ERR
+
+    items = jsonObject['items']
+    if len(items) <= 0:
+        print("[Warning] no items for Instagram Data")
+        return RETURN_ERR
+    item = jsonObject['items'][0]
+
+    ret = {}
+    ret[vIndex.V_URL] = ""#url
+    ret[vIndex.V_TITLE] = ""
+    ret[vIndex.VIEW] = 0
+    ret[vIndex.LIKE] = 0
+    ret[vIndex.COMMENTS] = 0
+    ret[vIndex.C_TITLE] = ""
+    ret[vIndex.C_URL] = ""
+    ret[vIndex.CHANNEL_SUBSCRIBER] = 0
+    ret[vIndex.THUMBNAIL] = ""
+
+    if ('like_count' in item):
+        ret[vIndex.LIKE] = item['like_count']
+    if ('comment_count' in item):
+        ret[vIndex.COMMENTS] = item['comment_count']
+    image_versions2 = None
+    if ('carousel_media' in item):
+        if len(item['carousel_media']) > 0:
+            images = item['carousel_media'][0]
+            if ('image_versions2' in images):
+                image_versions2 = images['image_versions2']
+    elif ('image_versions2' in item):
+        image_versions2 = item['image_versions2']
+    if (image_versions2 != None):
+        if ('candidates' in image_versions2):
+            if len(image_versions2['candidates']) > 0:
+                thumbnailImage = image_versions2['candidates'][0]
+                if ('url' in thumbnailImage):
+                    ret[vIndex.THUMBNAIL] = thumbnailImage['url']
+    if ('user' in item) and ('username' in item['user']):
+        ret[vIndex.C_TITLE] = item['user']['username']
+        ret[vIndex.C_URL] = "https://www.instagram.com/" + item['user']['username']
+        channel_json = RequestInfo_Instagram(ret[vIndex.C_URL], session)
+        channel_info = json.dumps(channel_json)
+        cObject = json.loads(channel_info)
+        if ('graphql' in cObject) and ('user' in cObject['graphql']) and ('edge_followed_by' in cObject['graphql']['user']) and ('count' in cObject['graphql']['user']['edge_followed_by']):
+            ret[vIndex.CHANNEL_SUBSCRIBER] = cObject['graphql']['user']['edge_followed_by']['count']
+    return ret
+
+
+def run_ContentAnalysis_Instagram(sheet, session):
+    print("[Info] Running ContentAnalysis for Instagram")
+    max_row = sheet.max_row + 1
+    for row in trange(START_ROW, max_row):
+        pURL = sheet.cell(row, START_COL).value
+        if pURL == None:
+            continue
+        pID = get_id_from_url(pURL)
+        if (pID == RETURN_ERR) or (pID == None):
+            print("[Warning] " + "fail to get ID from URL : " + pURL)
+            continue
+        pURL = "https://www.instagram.com/p/" + pID + "/"
+        print(pURL) # debug
+        res_json = RequestInfo_Instagram(pURL, session)
+        df_just_content = GetContentData_Instagram(res_json, session)
+        if df_just_content == RETURN_ERR:
+            print("skip parsing content: " + pURL)
+            continue
+        df_just_content[vIndex.V_URL] = pURL
+        UpdateVideoInfoToExcel(sheet, row, START_COL + 1, df_just_content)
+
+
+
+def login_instagram():
+    link = 'https://www.instagram.com/accounts/login/'
+    login_url = 'https://www.instagram.com/accounts/login/ajax/'
+
+    session = requests.Session()
+    time = int(datetime.now().timestamp())
+    response = requests.get(link)
+    csrf = response.cookies['csrftoken']
+
+    payload = {
+        'username': INSTA_ID,
+        'enc_password': f'#PWD_INSTAGRAM_BROWSER:0:{time}:{INSTA_PW}',
+        'queryParams': {},
+        'optIntoOneTap': 'false'
+    }
+
+    login_header = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://www.instagram.com/accounts/login/",
+        "x-csrftoken": csrf
+    }
+
+    login_response = session.post(login_url, data=payload, headers=login_header)
+    json_data = json.loads(login_response.text)
+
+    if ("authenticated" in json_data) and (json_data["authenticated"]):
+
+        print("login successful")
+        cookies = login_response.cookies
+        cookie_jar = cookies.get_dict()
+        csrf_token = cookie_jar['csrftoken']
+        print("csrf_token: ", csrf_token)
+        session_id = cookie_jar['sessionid']
+        print("session_id: ", session_id)
+    else:
+        print("login failed ", login_response.text)
+        return RETURN_ERR
+    return session
+
+
+
+
+
+
 
 
 # read excel
 xlsx = openpyxl.load_workbook(INPUT_EXCEL)
 cSheet = xlsx.worksheets[INFLUENCER_SHEET]
 vSheet = xlsx.worksheets[VIDEO_SHEET]
+
+pSheet = xlsx.worksheets[IG_POST_SHEET]
 print("[Info] Open input excel: " + INPUT_EXCEL)
 
 # run Analysis
