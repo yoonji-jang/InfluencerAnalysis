@@ -209,6 +209,8 @@ def GetChannelData(cID, channel_info, channel_contents_info, dev_key):
             res_json = RequestVideoInfo(vID, dev_key)
 
             video_info = GetVideoData(vID, res_json, dev_key)
+            if (video_info == RETURN_ERR):
+                return RETURN_ERR
             view = int(video_info[vIndex.VIEW])
             like = int(video_info[vIndex.LIKE])
             comments = int(video_info[vIndex.COMMENTS])
@@ -287,7 +289,7 @@ def GetVideoData(vID, input_json, dev_key):
 
 
 def run_VideoAnalysis(sheet, dev_key):
-    print("[Info] Running Youtube VideoAnalysis")
+    print("[Info] Running Youtube Video Analysis")
     max_row = sheet.max_row + 1
     for row in trange(START_ROW, max_row):
         vURL = sheet.cell(row, START_COL).value
@@ -305,7 +307,7 @@ def run_VideoAnalysis(sheet, dev_key):
 
 
 def run_InfluencerAnalysis(sheet, dev_key):
-    print("[Info] Running Youtube InfluencerAnalysis")
+    print("[Info] Running Youtube Influencer Analysis")
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=dev_key)
     max_row = sheet.max_row + 1
     for row in trange(START_ROW, max_row):
@@ -392,7 +394,7 @@ def GetContentData_Instagram(content_json, session):
 
 
 def run_ContentAnalysis_Instagram(sheet, session):
-    print("[Info] Running ContentAnalysis for Instagram")
+    print("[Info] Running Instagram Content Analysis")
     max_row = sheet.max_row + 1
     for row in trange(START_ROW, max_row):
         pURL = sheet.cell(row, START_COL).value
@@ -403,7 +405,7 @@ def run_ContentAnalysis_Instagram(sheet, session):
             print("[Warning] " + "fail to get ID from URL : " + pURL)
             continue
         pURL = "https://www.instagram.com/p/" + pID + "/"
-        print(pURL) # debug
+        #print(pURL) # debug
         res_json = RequestInfo_Instagram(pURL, session)
         df_just_content = GetContentData_Instagram(res_json, session)
         if df_just_content == RETURN_ERR:
