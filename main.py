@@ -409,9 +409,14 @@ def GetContentData_Instagram(content_json, session):
 def GetChannelData_Instagram(content_json, session):
     arr = json.dumps(content_json)
     jsonObject = json.loads(arr)
-    if ('graphql' not in jsonObject) or ('user' not in jsonObject['graphql']):
-        print("[Warning] response error!")
-        return RETURN_ERR
+    try:
+        if ('graphql' not in jsonObject) or ('user' not in jsonObject['graphql']):
+            print("[Warning] response error!")
+            return RETURN_ERR
+    except Exception as exception:
+            print("[Warning] " + str(exception))
+            return RETURN_ERR
+
     item = jsonObject['graphql']['user']
 
     ret = {}
