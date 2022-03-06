@@ -9,10 +9,23 @@ import io
 from tqdm import trange
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
+import argparse
+
+# parse argument
+parser = argparse.ArgumentParser()
+parser.add_argument('--yc', action='store_true', help='youtube channel')
+parser.add_argument('--yv', action='store_true', help='youtube video')
+parser.add_argument('--ic', action='store_true', help='instagram channel')
+parser.add_argument('--ip', action='store_true', help='instagram post')
+args = parser.parse_args()
+RUN_YC = args.yc
+RUN_YV = args.yv
+RUN_IC = args.ic
+RUN_IP = args.ip
 
 
 # version info
-VERSION = 3.2
+VERSION = 3.3
 
 # Todo: add error handling, excel cell size
 RETURN_ERR = -1
@@ -393,6 +406,60 @@ def GetContentData_Instagram(content_json, session):
     return ret
 
 
+def GetChannelData_Instagram(content_json, session):
+    arr = json.dumps(content_json)
+    jsonObject = json.loads(arr)
+    if ('graphql' not in jsonObject) or ('user' not in jsonObject['graphql']):
+        print("[Warning] response error!")
+        return RETURN_ERR
+    item = jsonObject['graphql']['user']
+
+    ret = {}
+    ret[cIndex.URL] = ""
+    ret[cIndex.PROFILE_IMG] = ""
+    ret[cIndex.TITLE] = ""
+    ret[cIndex.SUBSCRIBER] = 0
+    ret[cIndex.POST_VIEW] = 0
+    ret[cIndex.POST_LIKE] = 0
+    ret[cIndex.POST_COMMENT] = 0
+    ret[cIndex.POST_ENGAGE] = 0
+
+    if ('username' in item):
+        ret[cIndex.TITLE] = item['username']
+        ret[cIndex.URL] = "https://www.instagram.com/" + ret[cIndex.TITLE]
+    if ('edge_followed_by' in item) and ('count' in item['edge_followed_by']):
+        ret[cIndex.SUBSCRIBER] = item['edge_followed_by']['count']
+    if ('profile_pic_url_hd' in item):
+        ret[cIndex.PROFILE_IMG] = item['profile_pic_url_hd']
+    if ('id' in item):
+        userID = str(item['id'])
+    nLikeCnt = 0
+    nCommentCnt = 0
+    nLike = 0;
+    nComment = 0;
+
+    #queryUrl = "https://www.instagram.com/graphql/query/?query_id=" + INSTAGRAM_API_USER_POST + "&id=" + userID + "&first=12"
+
+    if ('edge_owner_to_timeline_media' in item) and ('edges' in item['edge_owner_to_timeline_media']):
+        medias = item['edge_owner_to_timeline_media']['edges']
+        for post in medias:
+            if ('node' in post):
+                media = post['node']
+                if ('edge_liked_by' in media) and ('count' in media['edge_liked_by']):
+                    nLikeCnt += media['edge_liked_by']['count']
+                    nLike += 1
+                if ('edge_media_to_comment' in media) and ('count' in media['edge_media_to_comment']):
+                    nCommentCnt += media['edge_media_to_comment']['count']
+                    nComment += 1
+    if nLike > 0:
+        ret[cIndex.POST_LIKE] = nLikeCnt / nLike
+    if nComment > 0:
+        ret[cIndex.POST_COMMENT] = nCommentCnt / nComment
+    if ret[cIndex.SUBSCRIBER] > 0:
+        ret[cIndex.POST_ENGAGE] = ((ret[cIndex.POST_LIKE] + ret[cIndex.POST_COMMENT]) / ret[cIndex.SUBSCRIBER]) * 100
+    return ret
+
+
 def run_ContentAnalysis_Instagram(sheet, session):
     print("[Info] Running Instagram Content Analysis")
     max_row = sheet.max_row + 1
@@ -413,6 +480,27 @@ def run_ContentAnalysis_Instagram(sheet, session):
             continue
         df_just_content[vIndex.V_URL] = pURL
         UpdateVideoInfoToExcel(sheet, row, START_COL + 1, df_just_content)
+
+
+def run_InfluencerAnalysis_Instagram(sheet, session):
+    print("[Info] Running Instagram Influencer Analysis")
+    max_row = sheet.max_row + 1
+    for row in trange(START_ROW, max_row):
+        cURL = sheet.cell(row, START_COL).value
+        if cURL == None:
+            continue
+        cID = get_id_from_url(cURL)
+        if (cID == RETURN_ERR) or (cID == None):
+            print("[Warning] " + "fail to get ID from URL : " + cURL)
+            continue
+        cURL = "https://www.instagram.com/" + cID + "/"
+        #print(cURL) # debug
+        res_json = RequestInfo_Instagram(cURL, session)
+        df_just_content = GetChannelData_Instagram(res_json, session)
+        if df_just_content == RETURN_ERR:
+            print("skip parsing content: " + cURL)
+            continue
+        UpdateChannelInfoToExcel(sheet, row, START_COL + 1, df_just_content)
 
 
 
@@ -458,22 +546,36 @@ def login_instagram():
 
 
 
-
-
-
-
-
 # read excel
 xlsx = openpyxl.load_workbook(INPUT_EXCEL)
-cSheet = xlsx.worksheets[INFLUENCER_SHEET]
-vSheet = xlsx.worksheets[VIDEO_SHEET]
-
-pSheet = xlsx.worksheets[IG_POST_SHEET]
+sheet_num = len(xlsx.sheetnames)
 print("[Info] Open input excel: " + INPUT_EXCEL)
 
-# run Analysis
-run_VideoAnalysis(vSheet, DEVELOPER_KEY)
-run_InfluencerAnalysis(cSheet, DEVELOPER_KEY)
+# run Youtube Channel Analysis
+if ((RUN_YC == True) and (INFLUENCER_SHEET < sheet_num)):
+    cSheet = xlsx.worksheets[INFLUENCER_SHEET]
+    run_InfluencerAnalysis(cSheet, DEVELOPER_KEY)
+
+# run Youtube Video Analysis
+if ((RUN_YV == True) and (VIDEO_SHEET < sheet_num)):
+    vSheet = xlsx.worksheets[VIDEO_SHEET]
+    run_VideoAnalysis(vSheet, DEVELOPER_KEY)
+
+if (RUN_IC == True or RUN_IP == True):
+    session = login_instagram()
+
+# run Instagram Channel Analysis
+if ((RUN_IC == True) and (IG_INFLUENCER_SHEET < sheet_num)):
+    iSheet = xlsx.worksheets[IG_INFLUENCER_SHEET]
+    if(session != RETURN_ERR):
+        run_InfluencerAnalysis_Instagram(iSheet, session)
+
+
+# run Instagram Post Analysis
+if ((RUN_IP == True) and (IG_POST_SHEET < sheet_num)):
+    pSheet = xlsx.worksheets[IG_POST_SHEET]
+    if(session != RETURN_ERR):
+        run_ContentAnalysis_Instagram(pSheet, session)
 
 # save excel
 xlsx.save(OUTPUT_EXCEL)
