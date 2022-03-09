@@ -25,7 +25,7 @@ RUN_IP = args.ip
 
 
 # version info
-VERSION = 3.3
+VERSION = 4.0
 
 # Todo: add error handling, excel cell size
 RETURN_ERR = -1
@@ -50,6 +50,7 @@ IG_INFLUENCER_SHEET = int(excel_dict["IG_INFLUENCER_SHEET"])
 IG_POST_SHEET = int(excel_dict["IG_POST_SHEET"])
 START_ROW = int(excel_dict["START_ROW"])
 START_COL = int(excel_dict["START_COL"])
+END_ROW = int(excel_dict["END_ROW"])
 MAX_RESULT = int(excel_dict["MAX_RESULT"])
 INSTA_ID = excel_dict["INSTA_ID"]
 INSTA_PW = excel_dict["INSTA_PW"]
@@ -170,7 +171,7 @@ def UpdateChannelInfoToExcel(sheet, r, start, data):
     sheet.cell(row=r, column=start_c + cIndex.POST_VIEW).value = round(float(data[cIndex.POST_VIEW]), 2)
     sheet.cell(row=r, column=start_c + cIndex.POST_LIKE).value = round(float(data[cIndex.POST_LIKE]), 2)
     sheet.cell(row=r, column=start_c + cIndex.POST_COMMENT).value = round(float(data[cIndex.POST_COMMENT]),2 )
-    sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE).value = round(float(data[cIndex.POST_ENGAGE]), 2)
+    sheet.cell(row=r, column=start_c + cIndex.POST_ENGAGE).value = str(round(float(data[cIndex.POST_ENGAGE]), 2)) + "%"
 
 
 def GetChannelData(cID, channel_info, channel_contents_info, dev_key):
@@ -303,7 +304,7 @@ def GetVideoData(vID, input_json, dev_key):
 
 def run_VideoAnalysis(sheet, dev_key):
     print("[Info] Running Youtube Video Analysis")
-    max_row = sheet.max_row + 1
+    max_row = min(sheet.max_row + 1, END_ROW)
     for row in trange(START_ROW, max_row):
         vURL = sheet.cell(row, START_COL).value
         if vURL == None:
@@ -322,7 +323,7 @@ def run_VideoAnalysis(sheet, dev_key):
 def run_InfluencerAnalysis(sheet, dev_key):
     print("[Info] Running Youtube Influencer Analysis")
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=dev_key)
-    max_row = sheet.max_row + 1
+    max_row = min(sheet.max_row + 1, END_ROW)
     for row in trange(START_ROW, max_row):
         cURL = sheet.cell(row, START_COL).value
         if cURL == None:
