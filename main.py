@@ -305,7 +305,7 @@ def GetVideoData(vID, input_json, dev_key):
 def run_VideoAnalysis(sheet, dev_key):
     print("[Info] Running Youtube Video Analysis")
     max_row = min(sheet.max_row + 1, END_ROW)
-    for row in trange(START_ROW, max_row):
+    for row in trange(START_ROW, max_row+ 1):
         vURL = sheet.cell(row, START_COL).value
         if vURL == None:
             continue
@@ -324,7 +324,7 @@ def run_InfluencerAnalysis(sheet, dev_key):
     print("[Info] Running Youtube Influencer Analysis")
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=dev_key)
     max_row = min(sheet.max_row + 1, END_ROW)
-    for row in trange(START_ROW, max_row):
+    for row in trange(START_ROW, max_row + 1):
         cURL = sheet.cell(row, START_COL).value
         if cURL == None:
             continue

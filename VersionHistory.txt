@@ -1,3 +1,17 @@
+V4.0
+1. add instagram api
+2. add '%' for engage rate
+3. add MAX_ROW (엑셀의 START_ROW 부터 END_ROW 까지 수행합니다.)
+4. add error handling
+5. add hyperlink
+6. add mode select (ex) ./InfluencerAnalysis.exe --yc --ic
+--yc (youtube channel)
+--yv (youtube video)
+--ic (instagram channel)
+--ip (instagram post)
+
+
+
 V3
 1. Change total to sum
 2. Enable to parse youtube url
